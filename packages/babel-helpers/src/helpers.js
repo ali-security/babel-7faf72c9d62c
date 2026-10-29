@@ -2126,8 +2126,14 @@ helpers.wrapRegExp = helper("7.2.6")`
         return _super[Symbol.replace].call(
           this,
           str,
-          substitution.replace(/\\$<([^>]+)>/g, function(_, name) {
-            return "$" + groups[name];
+          substitution.replace(/\\$<([^>]+)(>|$)/g, function(match, name, end) {
+            if (end === "") {
+              // return unterminated group name as-is
+              return match;
+            } else {
+              var group = groups[name];
+              return typeof group === "number" ? "$" + group : "";
+            }
           })
         );
       } else if (typeof substitution === "function") {
