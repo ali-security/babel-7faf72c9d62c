@@ -42,6 +42,8 @@ module.exports = {
     "_browser\\.js",
   ],
   testEnvironment: "node",
+  // Name each skipped test and the upstream reason after the run.
+  reporters: ["default", "<rootDir>/scripts/jest-skipped-reporter.js"],
   setupFilesAfterEnv: ["<rootDir>/test/testSetupFile.js"],
   transformIgnorePatterns: [
     "/node_modules/",

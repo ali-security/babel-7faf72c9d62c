@@ -1,21 +1,58 @@
 name: Report Coverage
 
-on: [push, pull_request]
+on:
+  workflow_dispatch:
+    inputs:
+      test-filter:
+        description: "Optional jest path/name filter; empty runs the full suite"
+        required: false
+        default: ""
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 50
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Use Node.js latest
-        uses: actions/setup-node@v2-beta
+        uses: actions/setup-node@v4
         with:
-          node-version: "*"
+          # "*" resolved to Node 14 when 7.10.4 was released (2020-06-30);
+          # today's latest Node cannot run this era's jest 24 toolchain.
+          node-version: "14"
+      - name: Pin npm registry to release date
+        # `lerna bootstrap` installs each package's dependencies without a
+        # lockfile; resolve them as of the 7.10.4 release (2020-06-30).
+        run: |
+          npm config set registry https://:2020-06-30T13%3A11%3A27.578Z@time-machines-npm.sealsecurity.io/
+          npm config set always-auth true
+          yarn config set registry https://:2020-06-30T13%3A11%3A27.578Z@time-machines-npm.sealsecurity.io/
+      # Pack before the tests (the `make prepublish` order: bootstrap-only,
+      # then prepublish-build) so the Jest summary ends the job log.
+      - name: Build and pack @babel/runtime-corejs3
+        run: |
+          make bootstrap-only
+          make prepublish-build
+          mkdir -p "$GITHUB_WORKSPACE/seal-artifacts"
+          cd packages/babel-runtime-corejs3
+          npm pack
+          mv babel-runtime-corejs3-*.tgz "$GITHUB_WORKSPACE/seal-artifacts/runtime-corejs3-7.10.4.tgz"
       - name: Generate coverage report
         run: |
-          make -j test-ci-coverage
-      - name: Upload coverage report
-        uses: codecov/codecov-action@v1
+          if [ -n "${{ inputs.test-filter }}" ]; then
+            BABEL_COVERAGE=true BABEL_ENV=test make bootstrap
+            BABEL_ENV=test yarn --silent jest --ci ${{ inputs.test-filter }}
+          else
+            make -j test-ci-coverage
+          fi
+        env:
+          # browserslist 4.12 warns on stderr that the 2020 caniuse-lite is
+          # outdated; tests that compare stderr would fail on that warning alone.
+          BROWSERSLIST_IGNORE_OLD_DATA: "1"
+      - name: Upload npm artifact
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          name: runtime-corejs3-tgz
+          path: seal-artifacts/*.tgz
+          if-no-files-found: error

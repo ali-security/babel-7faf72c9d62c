@@ -10,6 +10,17 @@ env:
   global:
     - PATH=$HOME/.yarn/bin:$PATH
     - JOB=test
+    # browserslist 4.12 warns on stderr that the 2020 caniuse-lite is outdated;
+    # tests that compare stderr would fail on that warning alone.
+    - BROWSERSLIST_IGNORE_OLD_DATA=1
+
+before_install:
+  # `lerna bootstrap` installs each package's dependencies without a lockfile,
+  # so pin the registry to the 7.10.4 release date: a newer regexpu-core pulls
+  # Unicode data that breaks the dotall-regex unicode-property fixture.
+  - npm config set registry https://:2020-06-30T13%3A11%3A27.578Z@time-machines-npm.sealsecurity.io/
+  - npm config set always-auth true
+  - yarn config set registry https://:2020-06-30T13%3A11%3A27.578Z@time-machines-npm.sealsecurity.io/
 
 install: skip
 before_script:
@@ -25,13 +36,11 @@ script:
 matrix:
   fast_finish: true
   include:
-    - node_js: "node"
-      env: JOB=lint
     # We test the latest version on circleci
     - node_js: "13"
     # Move `windows` build to be the third since it is slow
     - os: windows
-      node_js: "node"
+      node_js: "14"
       env:
         - JOB=test
         # https://travis-ci.community/t/build-doesnt-finish-after-completing-tests/288/9
@@ -45,11 +54,11 @@ matrix:
     - node_js: "12"
     - node_js: "10"
     - node_js: "8"
-    - node_js: "node"
+    - node_js: "14"
       env: JOB=babel-parser-flow-tests
-    - node_js: "node"
+    - node_js: "14"
       env: JOB=babel-parser-typescript-tests
-    - node_js: "node"
+    - node_js: "14"
       env: JOB=babel-parser-test262-tests
 
 notifications:
